@@ -1,6 +1,8 @@
 "use client";
 
-export const ADMIN_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
+export const ADMIN_API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  (typeof window !== "undefined" ? "/api/v1" : (process.env.API_URL ? `${process.env.API_URL}/api/v1` : "http://localhost:3000/api/v1"));
 
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
