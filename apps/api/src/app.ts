@@ -26,15 +26,18 @@ import { calendarRoutes } from "./routes/calendarRoutes";
 import { cronRoutes } from "./routes/cronRoutes";
 import { errorHandler } from "./middleware/validation";
 
-function findNextDir(): string | null {
+function findNextDir(): { dir: string; type: "standalone" | "export" } | null {
   const candidates = [
     process.cwd(),
     path.resolve(__dirname, "../../.."),
     path.resolve(__dirname, "../.."),
   ];
   for (const c of candidates) {
-    if (fs.existsSync(path.join(c, ".next"))) {
-      return c;
+    if (fs.existsSync(path.join(c, ".next", "BUILD_ID"))) {
+      return { dir: c, type: "standalone" };
+    }
+    if (fs.existsSync(path.join(c, "out", "index.html"))) {
+      return { dir: c, type: "export" };
     }
   }
   return null;
@@ -93,26 +96,82 @@ export function createApp() {
   });
 
   // Next.js Frontend Integration (serves /, /about, /packages, /book, /admin, /_next/*, etc.)
-  const nextDir = findNextDir();
-  if (nextDir && process.env.NODE_ENV !== "test") {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const next = require("next");
-      const nextApp = next({ dev: false, dir: nextDir });
-      const prep = nextApp.prepare();
-      const handle = nextApp.getRequestHandler();
-
-      app.use(async (req, res, nextFn) => {
-        try {
-          await prep;
-          return handle(req, res);
-        } catch (err) {
-          return nextFn(err);
-        }
+  const frontend = findNextDir();
+  if (frontend && process.env.NODE_ENV !== "test") {
+    if (frontend.type === "export") {
+      const outDir = path.join(frontend.dir, "out");
+      app.use(express.static(outDir));
+      app.use((_req, res) => {
+        res.sendFile(path.join(outDir, "index.html"));
       });
-    } catch (err) {
-      console.warn("Notice: Next.js could not be attached:", err);
+    } else {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const next = require("next");
+        const nextApp = next({ dev: false, dir: frontend.dir });
+        let nextReady = false;
+        let nextInitError: Error | null = null;
+        const handle = nextApp.getRequestHandler();
+
+        const prep = nextApp.prepare()
+          .then(() => {
+            nextReady = true;
+            console.log("✅ Next.js web frontend ready!");
+          })
+          .catch((err: Error) => {
+            nextInitError = err;
+            console.error("❌ Failed to prepare Next.js:", err);
+          });
+
+        app.use(async (req, res, nextFn) => {
+          if (nextReady) {
+            try {
+              return await handle(req, res);
+            } catch (err) {
+              return nextFn(err);
+            }
+          }
+
+          if (nextInitError) {
+            return res.status(500).type("html").send(`
+              <!DOCTYPE html>
+              <html>
+                <head><title>Frontend Startup Error</title></head>
+                <body style="font-family: sans-serif; padding: 40px; background: #0f172a; color: #f8fafc;">
+                  <h2>Next.js Frontend Startup Error</h2>
+                  <p>The backend API is running, but the Next.js frontend encountered an error while starting:</p>
+                  <pre style="background: #1e293b; padding: 16px; border-radius: 8px; overflow: auto; color: #f43f5e;">${nextInitError.stack || nextInitError.message}</pre>
+                </body>
+              </html>
+            `);
+          }
+
+          try {
+            await prep;
+            return await handle(req, res);
+          } catch (err) {
+            return nextFn(err);
+          }
+        });
+      } catch (err) {
+        console.warn("Notice: Next.js could not be attached:", err);
+      }
     }
+  } else if (process.env.NODE_ENV !== "test") {
+    // If neither .next nor out exists, provide a friendly status page instead of a blank 404/503
+    app.use((_req, res) => {
+      res.status(200).type("html").send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Royal Mansion Resort & Villa</title></head>
+          <body style="font-family: sans-serif; padding: 40px; background: #0f172a; color: #f8fafc; text-align: center;">
+            <h2>Royal Mansion Resort & Villa API Server</h2>
+            <p>Backend API is active and healthy: <a href="/health" style="color: #38bdf8;">/health</a></p>
+            <p style="color: #94a3b8;">Frontend build (<code>.next/BUILD_ID</code>) not detected yet. Run <code>npm run build</code> or deploy frontend static export to complete setup.</p>
+          </body>
+        </html>
+      `);
+    });
   }
 
   return app;
