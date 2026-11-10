@@ -34,14 +34,50 @@ function loadDotEnv() {
   }
 }
 
+function buildDatabaseUrlFromParts(): string {
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0) {
+    return process.env.DATABASE_URL.trim();
+  }
+
+  const host = process.env.DB_HOST || "127.0.0.1";
+  const port = process.env.DB_PORT || "3306";
+  const user = process.env.DB_USER || "";
+  const password = process.env.DB_PASSWORD || "";
+  const database = process.env.DB_NAME || "";
+
+  if (user && database) {
+    const encodedUser = encodeURIComponent(user);
+    const encodedPassword = encodeURIComponent(password);
+    return `mysql://${encodedUser}:${encodedPassword}@${host}:${port}/${database}`;
+  }
+
+  return "";
+}
+
 loadDotEnv();
+
+// If DATABASE_URL is not explicitly set, assemble it from separate DB_* variables
+if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim().length === 0) {
+  const constructed = buildDatabaseUrlFromParts();
+  if (constructed) {
+    process.env.DATABASE_URL = constructed;
+  }
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
   API_URL: z.string().url().default("http://localhost:4000"),
   PORT: z.union([z.coerce.number(), z.string()]).default(4000),
-  DATABASE_URL: z.string().min(1),
+  // Database configuration: accepts DATABASE_URL or separate DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+  DATABASE_URL: z
+    .string()
+    .min(1, "Database configuration missing: provide DB_USER, DB_PASSWORD, DB_NAME (and optionally DB_HOST, DB_PORT) or DATABASE_URL"),
+  DB_HOST: z.string().optional().default("127.0.0.1"),
+  DB_PORT: z.union([z.coerce.number(), z.string()]).optional().default(3306),
+  DB_USER: z.string().optional(),
+  DB_PASSWORD: z.string().optional(),
+  DB_NAME: z.string().optional(),
   SESSION_SECRET: z.string().min(16).default("development-session-secret-change-me"),
   PROPERTY_TIMEZONE: z.string().default("Asia/Colombo"),
   DEFAULT_CURRENCY: z.string().default("LKR"),

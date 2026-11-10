@@ -6,6 +6,18 @@ function run(cmd, desc) {
   execSync(cmd, { stdio: "inherit" });
 }
 
+// If separate DB variables are provided, construct DATABASE_URL automatically
+if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim().length === 0) {
+  const host = process.env.DB_HOST || "127.0.0.1";
+  const port = process.env.DB_PORT || "3306";
+  const user = process.env.DB_USER || "";
+  const password = process.env.DB_PASSWORD || "";
+  const database = process.env.DB_NAME || "";
+  if (user && database) {
+    process.env.DATABASE_URL = `mysql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
+  }
+}
+
 try {
   // 1. Generate Prisma Client
   run("npx prisma generate --schema apps/api/prisma/schema.prisma", "Generating Prisma Client");
