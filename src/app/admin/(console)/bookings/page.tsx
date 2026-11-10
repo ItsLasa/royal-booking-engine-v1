@@ -12,7 +12,7 @@ import { Button, EmptyState, Input, PageHeader, Pagination, Select, StatusBadge 
 const STATUSES = ["", "HOLD", "PENDING_PAYMENT", "PAYMENT_PROCESSING", "CONFIRMED", "CANCELLED", "COMPLETED", "NO_SHOW", "EXPIRED"];
 const PAYMENT_STATUSES = ["", "UNPAID", "PARTIALLY_PAID", "PAID", "FAILED", "REFUNDED"];
 
-export default function BookingsListPage() {
+function BookingsListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get("search") ?? "";
@@ -100,5 +100,13 @@ export default function BookingsListPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BookingsListPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-neutral-500">Loading bookings...</div>}>
+      <BookingsListContent />
+    </Suspense>
   );
 }

@@ -184,3 +184,4 @@ You have two simple options for hosting the Next.js frontend:
 | `503 Service Unavailable` | Node.js app stopped or crashed | Check cPanel `stderr.log` in the application root directory. |
 | `CORS Error` on frontend | `FRONTEND_URL` mismatch in `.env` | Ensure `FRONTEND_URL=https://yourdomain.com` matches your exact frontend URL without trailing slash. |
 | `Prisma Client Engine error` | Linux GLIBC binary target missing | The `schema.prisma` has been updated with `rhel-openssl` and `debian-openssl` Linux binary targets. |
+| `Next.js build worker exited with signal: SIGKILL` | Container RAM limit exceeded during `next build` | The build pipeline is now optimized for low-memory environments (`cpus: 1`, `workerThreads: false`). If your cPanel host has strict memory (<1GB), add environment variable `SERVER_ONLY=true` in cPanel Node.js App UI to build only the backend API server. |
